@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Checkout a branch, fetching it from origin when it isn't local yet.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+branch=${1:-}
+[ -n "$branch" ] || die 'usage: git co <branch>'
+
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+	run git checkout "$branch"
+else
+	run git fetch origin "$branch"
+	run git checkout -b "$branch" "origin/$branch"
+fi

@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Stage all, commit, push.
+# Flags: -f force-with-lease, -p skip hooks, -s skip staging.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+push_opts=()
+commit_opts=()
+message=()
+skip_add=''
+
+for arg in "$@"; do
+	case $arg in
+		-f) push_opts+=(--force-with-lease) ;;
+		-p)
+			commit_opts+=(--no-verify)
+			push_opts+=(--no-verify)
+			;;
+		-s) skip_add=1 ;;
+		-*) die "unknown flag: $arg" ;;
+		*) message+=("$arg") ;;
+	esac
+done
+
+[ ${#message[@]} -gt 0 ] || die 'usage: git cp [-f] [-p] [-s] <message>'
+
+[ -n "$skip_add" ] || run git add -A
+
+if git diff --cached --quiet; then
+	echo 'nothing to commit, pushing anyway'
+else
+	run git commit ${commit_opts[@]+"${commit_opts[@]}"} -m "${message[*]}"
+fi
+
+if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+	run git push ${push_opts[@]+"${push_opts[@]}"}
+else
+	run git push ${push_opts[@]+"${push_opts[@]}"} -u origin HEAD
+fi

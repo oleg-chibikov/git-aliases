@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Drop local changes (asks first), fetch, hard reset to the default branch.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+branch=$(default_branch)
+
+if [ -n "$(git status --porcelain)" ]; then
+	echo 'You have local changes:'
+	git status --short
+	confirm 'Drop all local changes?' || die 'aborted'
+	run git reset --hard HEAD
+	run git clean -fd
+fi
+
+run git fetch origin "$branch"
+
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+	run git checkout "$branch"
+else
+	run git checkout -b "$branch" --track "origin/$branch"
+fi
+
+run git reset --hard "origin/$branch"

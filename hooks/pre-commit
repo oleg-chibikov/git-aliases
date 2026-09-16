@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Runs lint.sh before every commit. Enabled by install.sh via core.hooksPath.
+set -euo pipefail
+
+exec "$(git rev-parse --show-toplevel)/lint.sh"

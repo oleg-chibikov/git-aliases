@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Prune remotes, then offer to remove worktrees whose upstream is gone.
+# Removing a worktree also deletes its local branch. Locked worktrees and the
+# main one are left alone.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+run git fetch --prune
+
+gone=$(gone_branches)
+if [ -z "$gone" ]; then
+	echo 'No worktrees with a gone upstream.'
+	exit 0
+fi
+
+worktrees=$(git worktree list --porcelain | awk '
+	BEGIN { RS = ""; FS = "\n" }
+	NR == 1 { next }
+	{
+		path = ""; branch = ""; locked = 0
+		for (i = 1; i <= NF; i++) {
+			if ($i ~ /^worktree /) path = substr($i, 10)
+			else if ($i ~ /^branch refs\/heads\//) branch = substr($i, 19)
+			else if ($i ~ /^locked/) locked = 1
+		}
+		if (branch != "" && !locked) print path "\t" branch
+	}')
+
+selected=''
+while IFS=$'\t' read -r path branch; do
+	[ -n "$branch" ] || continue
+	if printf '%s\n' "$gone" | grep -qxF "$branch"; then
+		selected+="$path	$branch"$'\n'
+	fi
+done <<<"$worktrees"
+
+if [ -z "$selected" ]; then
+	echo 'No worktrees with a gone upstream.'
+	exit 0
+fi
+
+echo 'Worktrees whose remote branch was deleted:'
+printf '%s' "$selected" | awk -F'\t' '{print "  " $1 " [" $2 "]"}'
+confirm 'Remove these worktrees and delete their branches?' || die 'aborted'
+
+while IFS=$'\t' read -r path branch; do
+	[ -n "$branch" ] || continue
+	run git worktree remove "$path"
+	run git branch -D "$branch"
+done <<<"$selected"

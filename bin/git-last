@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Show the last commit with its diff.
+set -euo pipefail
+
+git show HEAD

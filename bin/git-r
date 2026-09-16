@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Fetch and rebase onto the default branch.
+# -c rebases onto the upstream of the current branch, or pass a branch name.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+case ${1:-} in
+	-c) target='@{u}' ;;
+	'') target="origin/$(default_branch)" ;;
+	-*) die "unknown flag: $1" ;;
+	*) target="origin/$1" ;;
+esac
+
+run git fetch origin
+run git rebase "$target"

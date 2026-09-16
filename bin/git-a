@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# List every alias in this repo with its description.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+config="$root/aliases.gitconfig"
+[ -f "$config" ] || die "no aliases.gitconfig next to $0"
+
+render() {
+	local entry name value script line
+	while IFS= read -r -d '' entry; do
+		name=${entry%%$'\n'*}
+		name=${name#alias.}
+		value=${entry#*$'\n'}
+		script=${value##*/}
+		printf '%s%-8s%s %sbin/%s%s\n' "$C_CMD" "$name" "$C_RESET" "$C_DIM" "$script" "$C_RESET"
+		while IFS= read -r line; do
+			printf '  %s%s%s\n' "$C_NOTE" "$line" "$C_RESET"
+		done < <(description "$root/bin/$script")
+		printf '\n'
+	done < <(git config --file "$config" --null --get-regexp '^alias\.')
+}
+
+if [ -t 1 ] && command -v less >/dev/null 2>&1; then
+	render | less -R
+else
+	render
+fi

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Prune remotes, then offer to delete local branches whose upstream is gone.
+# Those are usually branches that were squash-merged.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+run git fetch --prune
+
+gone=$(gone_branches)
+if [ -z "$gone" ]; then
+	echo 'No local branches with a gone upstream.'
+	exit 0
+fi
+
+echo 'Local branches whose remote was deleted:'
+printf '%s\n' "$gone" | sed 's/^/  /'
+confirm 'Delete these?' || die 'aborted'
+
+while IFS= read -r branch; do
+	run git branch -D "$branch"
+done <<<"$gone"

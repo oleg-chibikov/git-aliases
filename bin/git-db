@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pick local branches with fzf (TAB for several) and force-delete them.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+require fzf
+
+current=$(git branch --show-current)
+
+selected=$(
+	git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/ |
+		awk -v current="$current" '$0 != current' |
+		fzf --multi --height=40% --reverse \
+			--header='TAB to multi-select, Enter to force-delete' \
+			--preview "$fzf_preview"
+) || exit 0
+
+[ -n "$selected" ] || exit 0
+
+while IFS= read -r branch; do
+	run git branch -D "$branch"
+done <<<"$selected"

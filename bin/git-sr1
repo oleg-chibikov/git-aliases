@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Undo the last commit, keep its changes staged.
+set -euo pipefail
+# shellcheck source=bin/_lib.sh
+. "$(dirname "$0")/_lib.sh"
+
+run git reset --soft HEAD~1
