@@ -66,10 +66,10 @@ going there.
 | --- | --- |
 | `a` | List every alias with its description |
 | `b` | Print the current branch name |
-| `c` | Commit, args joined into the message, flags passed to `git commit` |
+| `c` | Commit, args joined into the message, flags passed to `git commit`, `--` forces the rest to be message |
 | `cb` | Create a branch, name normalized to lowercase-with-hyphens |
 | `co` | Checkout a branch, fetch it from origin if it isn't local yet |
-| `cp` | Stage all, commit, push. `-f` force-with-lease, `-p` skip hooks, `-s` skip staging |
+| `cp` | Stage all, commit, push. `-f` force-with-lease, `-p` skip hooks, `-s` skip staging, `--` forces the rest to be message |
 | `db` | Pick local branches with fzf (TAB for several) and force-delete them |
 | `dbm` | Prune remotes, then offer to delete branches whose upstream is gone |
 | `dwm` | Same for worktrees: removes the worktree and its branch |

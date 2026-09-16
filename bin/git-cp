@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stage all, commit, push.
 # Flags: -f force-with-lease, -p skip hooks, -s skip staging.
+# Everything after -- is message, even if it starts with a dash.
 set -euo pipefail
 # shellcheck source=bin/_lib.sh
 . "$(dirname "$0")/_lib.sh"
@@ -9,9 +10,15 @@ push_opts=()
 commit_opts=()
 message=()
 skip_add=''
+rest_is_message=0
 
 for arg in "$@"; do
+	if [ "$rest_is_message" = 1 ]; then
+		message+=("$arg")
+		continue
+	fi
 	case $arg in
+		--) rest_is_message=1 ;;
 		-f) push_opts+=(--force-with-lease) ;;
 		-p)
 			commit_opts+=(--no-verify)
@@ -23,7 +30,7 @@ for arg in "$@"; do
 	esac
 done
 
-[ ${#message[@]} -gt 0 ] || die 'usage: git cp [-f] [-p] [-s] <message>'
+[ ${#message[@]} -gt 0 ] || die 'usage: git cp [-f] [-p] [-s] [--] <message>'
 
 [ -n "$skip_add" ] || run git add -A
 

@@ -82,6 +82,12 @@ git add -A
 git c fixed the file >/dev/null 2>&1
 is 'git c joins the message' 'fixed the file' "$(git log -1 --format=%s)"
 
+echo three >>file.txt
+git add -A
+git c -- -fixed with a dash >/dev/null 2>&1
+is 'git c takes a message starting with a dash after --' '-fixed with a dash' "$(git log -1 --format=%s)"
+git reset -q --soft HEAD~1
+
 has 'git last shows the commit' 'fixed the file' "$(git last)"
 
 git sr1 >/dev/null 2>&1
