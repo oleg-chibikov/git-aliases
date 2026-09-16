@@ -88,6 +88,10 @@ done
 
 [ ! -x bin/_lib.sh ] || fail 'bin/_lib.sh: sourced, not run, so it should not be executable'
 
+for script in install.sh lint.sh hooks/pre-commit; do
+	[ -x "$script" ] || fail "$script: not executable, run chmod +x"
+done
+
 # --- README -----------------------------------------------------------------
 
 for name in ${names[@]+"${names[@]}"}; do

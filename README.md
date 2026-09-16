@@ -15,15 +15,22 @@ One command:
 git clone git@github.com:oleg-chibikov/git-aliases.git ~/.git-aliases && ~/.git-aliases/install.sh
 ```
 
-Clone wherever you like, the path gets recorded. `install.sh` is safe to run
-again and it asks before changing anything:
+Clone wherever you like, the path gets recorded. `install.sh` asks before every
+change, copies any file it edits to `<file>.bak.<timestamp>` first, and only
+ever appends to `~/.zshrc`. Answer no to everything and it changes nothing. Run
+it again any time.
+
+What it asks about:
 
 - sets `gitaliases.dir` and `include.path` in `~/.gitconfig`
-- offers to drop an existing `[alias]` section, which would shadow the repo,
-  with a backup next to `~/.gitconfig`
+- offers to drop an existing `[alias]` section, which would shadow the repo
 - offers to source [shell/git-sb.zsh](shell/git-sb.zsh) from `~/.zshrc`, which
-  is what lets `git sb` change directory
+  is what lets `git sb` change directory. If `~/.zshrc` already has its own
+  `git()` wrapper it says on which line, and appending the repo version leaves
+  the old block as dead code for you to delete
 - points `core.hooksPath` at [hooks/](hooks) so commits here get linted
+- warns if git is older than 2.22, which `git b` and `git p` need
+- finishes by running `git a`, so a broken install can't pass silently
 
 `git sb` and `git db` need fzf:
 
