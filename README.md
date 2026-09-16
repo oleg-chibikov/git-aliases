@@ -95,14 +95,16 @@ then `origin/main`. If `origin/HEAD` is missing, run
 3. `chmod +x bin/git-<name>`.
 4. Add a line to `aliases.gitconfig`, keeping the list sorted.
 5. Add a row to the table above.
+6. Add a check to `test.sh` if the alias does something worth pinning down.
 
 ## Checks
 
 ```sh
-./lint.sh
+./lint.sh   # shape: comments, alias lines, README rows, shell style
+./test.sh   # behaviour: every alias against a throwaway repo
 ```
 
-It fails if a script has no description comment, isn't executable, misses
+`lint.sh` fails if a script has no description comment, isn't executable, misses
 `set -euo pipefail`, has no alias, has no README row, or if the alias lines
 drift from their fixed shape. With [shellcheck](https://www.shellcheck.net) and
 [shfmt](https://github.com/mvdan/sh) installed it runs those too:
@@ -112,8 +114,11 @@ brew install shellcheck shfmt
 shfmt --write --case-indent bin/* ./*.sh hooks/*
 ```
 
-`install.sh` points `core.hooksPath` at [hooks/](hooks), so the same check runs
-before every commit. GitHub Actions runs it on push.
+`test.sh` builds a repo and a `HOME` in a temp directory, so it can commit,
+push and reset for real without touching anything of yours.
+
+`install.sh` points `core.hooksPath` at [hooks/](hooks), so the lint runs before
+every commit. GitHub Actions runs both on push.
 
 ## Uninstall
 
@@ -124,3 +129,7 @@ git config --global --unset include.path "$HOME/.git-aliases/aliases.gitconfig"
 
 Then drop the `source .../shell/git-sb.zsh` line from `~/.zshrc` and delete the
 checkout.
+
+## License
+
+[MIT](LICENSE).

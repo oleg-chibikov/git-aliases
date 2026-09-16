@@ -2,7 +2,7 @@
 # Shared helpers for the git-* scripts next to this file. Not an alias itself.
 
 # shellcheck disable=SC2034  # each script uses a different subset of the colours
-if [ -t 1 ] || [ -t 2 ]; then
+if [ -z "${NO_COLOR:-}" ] && { [ -t 1 ] || [ -t 2 ]; }; then
 	C_RESET=$'\033[0m'
 	C_CMD=$'\033[1;36m'
 	C_MARK=$'\033[1;33m'

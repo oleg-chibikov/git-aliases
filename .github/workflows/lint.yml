@@ -15,3 +15,4 @@ jobs:
             https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
           chmod +x /usr/local/bin/shfmt
       - run: ./lint.sh
+      - run: ./test.sh
