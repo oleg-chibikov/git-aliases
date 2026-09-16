@@ -7,10 +7,21 @@ set -euo pipefail
 
 remote=$(default_remote)
 
+args='[-c | <branch>]'
+notes=(
+	'no arguments  rebase onto the default branch of the remote'
+	'-c            rebase onto the upstream of the current branch'
+	'<branch>      rebase onto that branch on the remote'
+)
+
 case ${1:-} in
+	-h | --help) usage "$args" "${notes[@]}" ;;
 	-c) target='@{u}' ;;
 	'') target="$remote/$(default_branch "$remote")" ;;
-	-*) die "unknown flag: $1" ;;
+	-*)
+		printf 'unknown flag: %s\n\n' "$1" >&2
+		usage "$args" "${notes[@]}"
+		;;
 	*) target="$remote/$1" ;;
 esac
 

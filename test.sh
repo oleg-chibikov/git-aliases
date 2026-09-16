@@ -77,6 +77,16 @@ is 'git cb normalizes the name' feature-x "$(git b)"
 
 refuses 'git c without a message' 'usage: git c' git c
 
+for alias_name in c cb co cp r; do
+	refuses "git $alias_name -h shows the usage" "usage: git $alias_name" git "$alias_name" -h
+done
+
+for alias_name in cb co cp; do
+	refuses "git $alias_name without arguments shows the usage" "usage: git $alias_name" git "$alias_name"
+done
+
+has 'the usage explains the flags' '-f  push with --force-with-lease' "$(git cp -h 2>&1 || true)"
+
 echo two >>file.txt
 git add -A
 git c fixed the file >/dev/null 2>&1

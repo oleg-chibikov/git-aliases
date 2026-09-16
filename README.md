@@ -60,7 +60,21 @@ going there.
 
 ## The aliases
 
-`git a` prints this same list, read from the scripts themselves.
+`git a` prints this same list, read from the scripts themselves. An alias that
+takes arguments explains them when you call it without any:
+
+```
+$ git cp
+usage: git cp [-f] [-p] [-s] [--] <message>
+
+  -f  push with --force-with-lease
+  -p  skip the commit and push hooks
+  -s  skip staging, commit whatever is staged already
+  --  makes everything after it message, even if it starts with a dash
+```
+
+`-h` prints the same thing. Git puts a line about the alias above it, that's
+git, not the script.
 
 | Alias | What it does |
 | --- | --- |

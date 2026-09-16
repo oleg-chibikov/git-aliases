@@ -27,6 +27,20 @@ die() {
 	exit 1
 }
 
+# How the alias is called: the argument shape, then a line per flag. Exits 1,
+# the way git itself answers -h.
+usage() {
+	local name=${0##*/}
+	name=${name#git-}
+	printf 'usage: git %s %s\n' "$name" "$1" >&2
+	shift
+	if [ "$#" -gt 0 ]; then
+		printf '\n' >&2
+		printf '  %s\n' "$@" >&2
+	fi
+	exit 1
+}
+
 # Ask on the terminal, not on stdin, so it works inside a pipeline.
 confirm() {
 	local answer

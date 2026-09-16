@@ -9,18 +9,25 @@ opts=()
 message=()
 rest_is_message=0
 
+args='[git commit flags] [--] <message>'
+notes=(
+	'flags are passed straight to git commit, say --amend or --no-verify'
+	'-- makes everything after it message, even if it starts with a dash'
+)
+
 for arg in "$@"; do
 	if [ "$rest_is_message" = 1 ]; then
 		message+=("$arg")
 		continue
 	fi
 	case $arg in
+		-h | --help) usage "$args" "${notes[@]}" ;;
 		--) rest_is_message=1 ;;
 		-*) opts+=("$arg") ;;
 		*) message+=("$arg") ;;
 	esac
 done
 
-[ ${#message[@]} -gt 0 ] || die 'usage: git c [git commit flags] [--] <message>'
+[ ${#message[@]} -gt 0 ] || usage "$args" "${notes[@]}"
 
 run git commit ${opts[@]+"${opts[@]}"} -m "${message[*]}"

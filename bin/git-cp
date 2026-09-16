@@ -12,12 +12,21 @@ message=()
 skip_add=''
 rest_is_message=0
 
+args='[-f] [-p] [-s] [--] <message>'
+notes=(
+	'-f  push with --force-with-lease'
+	'-p  skip the commit and push hooks'
+	'-s  skip staging, commit whatever is staged already'
+	'--  makes everything after it message, even if it starts with a dash'
+)
+
 for arg in "$@"; do
 	if [ "$rest_is_message" = 1 ]; then
 		message+=("$arg")
 		continue
 	fi
 	case $arg in
+		-h | --help) usage "$args" "${notes[@]}" ;;
 		--) rest_is_message=1 ;;
 		-f) push_opts+=(--force-with-lease) ;;
 		-p)
@@ -25,12 +34,15 @@ for arg in "$@"; do
 			push_opts+=(--no-verify)
 			;;
 		-s) skip_add=1 ;;
-		-*) die "unknown flag: $arg" ;;
+		-*)
+			printf 'unknown flag: %s\n\n' "$arg" >&2
+			usage "$args" "${notes[@]}"
+			;;
 		*) message+=("$arg") ;;
 	esac
 done
 
-[ ${#message[@]} -gt 0 ] || die 'usage: git cp [-f] [-p] [-s] [--] <message>'
+[ ${#message[@]} -gt 0 ] || usage "$args" "${notes[@]}"
 
 [ -n "$skip_add" ] || run git add -A
 
