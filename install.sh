@@ -46,9 +46,28 @@ fi
 
 command -v fzf >/dev/null 2>&1 || echo 'note: git sb and git db need fzf: brew install fzf'
 
+# git sb prints "__cd__ <path>"; the zsh wrapper turns that into a real cd.
+zshrc="$HOME/.zshrc"
+source_line="source \"$root/shell/git-sb.zsh\""
+if [ -f "$zshrc" ] && grep -qF 'shell/git-sb.zsh' "$zshrc"; then
+	echo "$zshrc already sources shell/git-sb.zsh"
+elif [ -f "$zshrc" ] && grep -qF '__cd__' "$zshrc"; then
+	echo "$zshrc has its own copy of the wrapper. To follow the repo instead,"
+	echo "delete that git() function and put this in its place: $source_line"
+else
+	printf 'Let git sb change directory by sourcing it from ~/.zshrc? [y/N] '
+	read -r answer </dev/tty
+	case $answer in
+		y | Y | yes | YES)
+			printf '\n# git-aliases\n%s\n' "$source_line" >>"$zshrc"
+			echo 'added to ~/.zshrc, pick it up with: exec zsh'
+			;;
+		*) echo "skipped, add this line to ~/.zshrc yourself: $source_line" ;;
+	esac
+fi
+
 # Lint on every commit in this repo.
 git -C "$root" config core.hooksPath hooks
 
 echo
 echo 'Done. Run: git a'
-echo 'For git sb to change directory, add the shell function from the README to ~/.zshrc.'

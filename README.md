@@ -9,16 +9,21 @@ at them.
 
 ## Install
 
+One command:
+
 ```sh
-git clone git@github.com:oleg-chibikov/git-aliases.git ~/Documents/Dev/git-aliases
-cd ~/Documents/Dev/git-aliases
-./install.sh
+git clone git@github.com:oleg-chibikov/git-aliases.git ~/.git-aliases && ~/.git-aliases/install.sh
 ```
 
-`install.sh` sets two things in `~/.gitconfig`: `include.path` to load the alias
-list, and `gitaliases.dir` so the aliases find `bin/` wherever you cloned the
-repo. If `~/.gitconfig` already defines aliases with the same names it says so
-and offers to drop them, with a backup.
+Clone wherever you like, the path gets recorded. `install.sh` is safe to run
+again and it asks before changing anything:
+
+- sets `gitaliases.dir` and `include.path` in `~/.gitconfig`
+- offers to drop an existing `[alias]` section, which would shadow the repo,
+  with a backup next to `~/.gitconfig`
+- offers to source [shell/git-sb.zsh](shell/git-sb.zsh) from `~/.zshrc`, which
+  is what lets `git sb` change directory
+- points `core.hooksPath` at [hooks/](hooks) so commits here get linted
 
 `git sb` and `git db` need fzf:
 
@@ -26,33 +31,23 @@ and offers to drop them, with a backup.
 brew install fzf
 ```
 
-## The `sb` shell function
+To update later:
+
+```sh
+git -C ~/.git-aliases pull
+```
+
+No second install step, the aliases run straight from the checkout.
+
+## Why `git sb` needs a shell function
 
 `git sb` can switch to a branch that lives in another worktree. A git alias runs
 in a subprocess and can't move the parent shell, so it prints `__cd__ <path>`
-and a shell function does the `cd`. Add this to `~/.zshrc`:
+and the function in [shell/git-sb.zsh](shell/git-sb.zsh) does the `cd`. It also
+moves the VS Code window, which needs the `code` CLI on PATH: VS Code palette,
+"Shell Command: Install 'code'". Setting `"git.detectWorktrees": true` makes VS
+Code list worktrees too.
 
-```sh
-git() {
-  if [[ "$1" == "sb" ]]; then
-    shift
-    local out
-    out=$(command git sb "$@") || return
-    if [[ "$out" == "__cd__ "* ]]; then
-      local dir=${out#__cd__ }
-      cd "$dir" || return
-      if [[ "$TERM_PROGRAM" == "vscode" ]] && (( $+commands[code] )); then
-        code -r "$dir"
-      fi
-    fi
-  else
-    command git "$@"
-  fi
-}
-```
-
-`code -r` needs the CLI on PATH: VS Code palette, "Shell Command: Install
-'code'". Setting `"git.detectWorktrees": true` makes VS Code list worktrees too.
 Without the function `git sb` still works, it just prints the path instead of
 going there.
 
@@ -112,3 +107,13 @@ shfmt --write --case-indent bin/* ./*.sh hooks/*
 
 `install.sh` points `core.hooksPath` at [hooks/](hooks), so the same check runs
 before every commit. GitHub Actions runs it on push.
+
+## Uninstall
+
+```sh
+git config --global --unset gitaliases.dir
+git config --global --unset include.path "$HOME/.git-aliases/aliases.gitconfig"
+```
+
+Then drop the `source .../shell/git-sb.zsh` line from `~/.zshrc` and delete the
+checkout.
