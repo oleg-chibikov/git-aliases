@@ -1,6 +1,7 @@
 # git-aliases
 
-My git aliases, kept in one place so any machine can pick them up.
+My git aliases, kept in one place so any machine can pick them up. `git a`
+prints the whole list with a description for each one.
 
 Each alias is a normal shell script in [bin/](bin), and
 [aliases.gitconfig](aliases.gitconfig) is a one-line-per-alias index that points
