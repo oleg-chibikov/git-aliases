@@ -7,4 +7,4 @@ set -euo pipefail
 branch=$(git branch --show-current)
 [ -n "$branch" ] || die 'detached HEAD, nothing to pull'
 
-run git pull --rebase origin "$branch"
+run git pull --rebase "$(default_remote)" "$branch"

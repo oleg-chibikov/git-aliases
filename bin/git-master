@@ -4,7 +4,8 @@ set -euo pipefail
 # shellcheck source=bin/_lib.sh
 . "$(dirname "$0")/_lib.sh"
 
-branch=$(default_branch)
+remote=$(default_remote)
+branch=$(default_branch "$remote")
 
 if [ -n "$(git status --porcelain)" ]; then
 	echo 'You have local changes:'
@@ -14,12 +15,12 @@ if [ -n "$(git status --porcelain)" ]; then
 	run git clean -fd
 fi
 
-run git fetch origin "$branch"
+run git fetch "$remote" "$branch"
 
 if git show-ref --verify --quiet "refs/heads/$branch"; then
 	run git checkout "$branch"
 else
-	run git checkout -b "$branch" --track "origin/$branch"
+	run git checkout -b "$branch" --track "$remote/$branch"
 fi
 
-run git reset --hard "origin/$branch"
+run git reset --hard "$remote/$branch"

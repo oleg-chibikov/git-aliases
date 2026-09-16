@@ -10,6 +10,7 @@ branch=${1:-}
 if git show-ref --verify --quiet "refs/heads/$branch"; then
 	run git checkout "$branch"
 else
-	run git fetch origin "$branch"
-	run git checkout -b "$branch" "origin/$branch"
+	remote=$(default_remote)
+	run git fetch "$remote" "$branch"
+	run git checkout -b "$branch" "$remote/$branch"
 fi

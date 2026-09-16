@@ -36,5 +36,5 @@ fi
 if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
 	run git push ${push_opts[@]+"${push_opts[@]}"}
 else
-	run git push ${push_opts[@]+"${push_opts[@]}"} -u origin HEAD
+	run git push ${push_opts[@]+"${push_opts[@]}"} -u "$(default_remote)" HEAD
 fi

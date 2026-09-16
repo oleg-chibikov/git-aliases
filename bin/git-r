@@ -5,12 +5,14 @@ set -euo pipefail
 # shellcheck source=bin/_lib.sh
 . "$(dirname "$0")/_lib.sh"
 
+remote=$(default_remote)
+
 case ${1:-} in
 	-c) target='@{u}' ;;
-	'') target="origin/$(default_branch)" ;;
+	'') target="$remote/$(default_branch "$remote")" ;;
 	-*) die "unknown flag: $1" ;;
-	*) target="origin/$1" ;;
+	*) target="$remote/$1" ;;
 esac
 
-run git fetch origin
+run git fetch "$remote"
 run git rebase "$target"

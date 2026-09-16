@@ -82,9 +82,9 @@ going there.
 | `sr1` | Undo the last commit, keep its changes staged |
 | `srmb` | Soft reset to the merge base with the default branch, keep changes staged |
 
-The default branch comes from `origin/HEAD`, falling back to `origin/master`
-then `origin/main`. If `origin/HEAD` is missing, run
-`git remote set-head origin --auto`.
+The remote is `origin`, or the only remote you have if it goes by another name.
+The default branch comes from `<remote>/HEAD`, falling back to `master` then
+`main`. If `<remote>/HEAD` is missing, run `git remote set-head origin --auto`.
 
 ## Adding or changing an alias
 

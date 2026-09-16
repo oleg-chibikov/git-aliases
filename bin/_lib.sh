@@ -39,23 +39,38 @@ confirm() {
 }
 
 require() {
-	command -v "$1" >/dev/null 2>&1 || die "$1 is required: brew install $1"
+	command -v "$1" >/dev/null 2>&1 || die "$1 is required, but it isn't installed"
 }
 
-# The branch origin points at, falling back to master then main.
+# origin when it exists, otherwise the only remote there is.
+default_remote() {
+	local remotes
+	if git remote get-url origin >/dev/null 2>&1; then
+		printf 'origin\n'
+		return 0
+	fi
+	remotes=$(git remote)
+	if [ "$(printf '%s' "$remotes" | grep -c .)" = 1 ]; then
+		printf '%s\n' "$remotes"
+		return 0
+	fi
+	die 'no remote called origin, and more than one to choose from'
+}
+
+# The branch that remote points at, falling back to master then main.
 default_branch() {
-	local ref branch
-	if ref=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null); then
-		printf '%s\n' "${ref#refs/remotes/origin/}"
+	local remote=$1 ref branch
+	if ref=$(git symbolic-ref --quiet "refs/remotes/$remote/HEAD" 2>/dev/null); then
+		printf '%s\n' "${ref#refs/remotes/"$remote"/}"
 		return 0
 	fi
 	for branch in master main; do
-		if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+		if git show-ref --verify --quiet "refs/remotes/$remote/$branch"; then
 			printf '%s\n' "$branch"
 			return 0
 		fi
 	done
-	die 'no origin/HEAD, origin/master or origin/main found, run: git remote set-head origin --auto'
+	die "no $remote/HEAD, $remote/master or $remote/main found, run: git remote set-head $remote --auto"
 }
 
 # The comment block under the shebang of a git-* script.
