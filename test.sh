@@ -224,26 +224,42 @@ is 'forced removal deletes the branch' '' "$(git branch --list delete-dirty)"
 
 # git drops the registration, then fails because a dev server wrote a new file.
 git() {
-	if [ "${1:-} ${2:-} ${3:-}" = 'worktree remove --force' ]; then
+	local last
+	for last; do :; done
+	if [ "${1:-} ${2:-}" = 'worktree remove' ] && [ "$last" = "${busy_path:-}" ]; then
 		command git "$@" || return
-		mkdir -p "$5/.vite"
-		echo "error: failed to delete '$5': Directory not empty" >&2
+		mkdir -p "$last/.vite"
+		echo "error: failed to delete '$last': Directory not empty" >&2
 		return 1
 	fi
 	command git "$@"
 }
+git worktree add -q -b delete-busy-clean "$tmp/busy-clean"
+busy_path="$tmp/busy-clean"
+: >"$tmp/confirmations"
+delete_answer=no
+load_deletion_worktrees
+selected=$(deletion_candidates all | awk -F'\t' '$1 == "delete-busy-clean"')
+delete_candidates "$selected" >"$tmp/delete-output" 2>&1
+is 'a clean folder refilled during removal is deleted without asking' '' "$(<"$tmp/confirmations")"
+is 'a clean folder refilled during removal is deleted' no "$([ -e "$tmp/busy-clean" ] && echo yes || echo no)"
+is 'a clean folder refilled during removal loses its branch' '' "$(git branch --list delete-busy-clean)"
+
 git worktree add -q -b delete-busy "$tmp/busy"
 git worktree add -q -b delete-after-busy "$tmp/after-busy"
 echo untracked >"$tmp/busy/untracked.txt"
+busy_path="$tmp/busy"
+delete_answer=yes
 load_deletion_worktrees
 selected=$(deletion_candidates all | awk -F'\t' '$1 == "delete-busy" || $1 == "delete-after-busy"')
 delete_candidates "$selected" >"$tmp/delete-output" 2>&1
-is 'a folder refilled during removal is deleted' no "$([ -e "$tmp/busy" ] && echo yes || echo no)"
-is 'a folder refilled during removal loses its branch' '' "$(git branch --list delete-busy)"
+is 'a dirty folder refilled during removal is deleted' no "$([ -e "$tmp/busy" ] && echo yes || echo no)"
+is 'a dirty folder refilled during removal loses its branch' '' "$(git branch --list delete-busy)"
 is 'deletion continues after a refilled folder' '' "$(git branch --list delete-after-busy)"
 
 git worktree add -q -b delete-stuck "$tmp/stuck"
 echo untracked >"$tmp/stuck/untracked.txt"
+busy_path="$tmp/stuck"
 rm() {
 	if [ "${3:-}" = "$tmp/stuck" ]; then
 		echo "rm: $3: Directory not empty" >&2

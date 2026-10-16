@@ -192,22 +192,32 @@ worktree_registered() {
 
 # A dev server running in the folder can write files while git deletes it.
 # git then drops the registration and leaves the folder behind.
-force_remove_worktree() {
+delete_leftover_folder() {
 	local path=$1 attempt pids
-	run git worktree remove --force -- "$path" && return 0
 	for attempt in 1 2 3; do
+		[ -e "$path" ] || return 0
 		[ "$attempt" = 1 ] || sleep 1
-		run rm -rf -- "$path" && break
+		run rm -rf -- "$path" && return 0
 	done
-	if worktree_registered "$path"; then
-		run git worktree remove --force -- "$path" || return 1
-	fi
-	[ -e "$path" ] || return 0
 	pids=''
 	if command -v lsof >/dev/null 2>&1; then
 		pids=$(lsof -t +d "$path" 2>/dev/null | sort -u | tr '\n' ' ') || true
 	fi
 	warn "could not delete '$path'${pids:+, processes still using it: $pids}"
+}
+
+remove_worktree() {
+	local path=$1
+	run git worktree remove -- "$path" && return 0
+	# git checks for changes before it deletes. A dropped registration means none.
+	if worktree_registered "$path"; then
+		confirm "Force-remove worktree '$path', including uncommitted and untracked files?" || return 1
+		run git worktree remove --force -- "$path" && return 0
+	fi
+	delete_leftover_folder "$path"
+	if worktree_registered "$path"; then
+		run git worktree remove --force -- "$path"
+	fi
 }
 
 delete_candidates() {
@@ -216,11 +226,7 @@ delete_candidates() {
 		[ -n "$branch" ] || continue
 		if [ "$index" != branch ]; then
 			path=${delete_paths[index]}
-			if ! run git worktree remove -- "$path"; then
-				confirm "Force-remove worktree '$path', including uncommitted and untracked files?" ||
-					die "worktree retained: $path"
-				force_remove_worktree "$path" || die "worktree retained: $path"
-			fi
+			remove_worktree "$path" || die "worktree retained: $path"
 			[ -n "${delete_branches[index]}" ] || continue
 			remaining=$(git for-each-ref --format='%(worktreepath)' "refs/heads/$branch")
 			if [ -n "$remaining" ]; then
