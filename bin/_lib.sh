@@ -98,4 +98,106 @@ gone_branches() {
 		awk '/\[gone\]/ {print $1}'
 }
 
+# Keep paths separate from picker labels, including paths with tabs or newlines.
+load_deletion_worktrees() {
+	local listing field index=-1
+	listing=$(mktemp) || return
+	if ! git worktree list --porcelain -z >"$listing"; then
+		rm -f -- "$listing"
+		return 1
+	fi
+	delete_paths=() delete_branches=() delete_heads=() delete_locked=()
+	while IFS= read -r -d '' field; do
+		case $field in
+			'worktree '*)
+				index=$((index + 1))
+				delete_paths[index]=${field#worktree }
+				delete_branches[index]=''
+				delete_heads[index]=''
+				delete_locked[index]=0
+				;;
+			'branch refs/heads/'*) delete_branches[index]=${field#branch refs/heads/} ;;
+			'HEAD '*) delete_heads[index]=${field#HEAD } ;;
+			locked*) delete_locked[index]=1 ;;
+		esac
+	done <"$listing"
+	rm -f -- "$listing"
+}
+
+deletable_worktree() {
+	local index=$1 here=$2 other path=${delete_paths[$1]}
+	[ "$index" != 0 ] || return 1
+	[ "$path" != "$here" ] || return 1
+	[ "${delete_locked[index]}" = 0 ] || return 1
+	for other in "${!delete_paths[@]}"; do
+		[ "$other" != "$index" ] || continue
+		case ${delete_paths[other]} in
+			"$path"/*) return 1 ;;
+		esac
+	done
+}
+
+deletion_candidates() {
+	local mode=$1 here current branches gone='' branch index held path
+	here=$(git rev-parse --show-toplevel) || return
+	current=$(git branch --show-current) || return
+	branches=$(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/) || return
+	if [ "$mode" = gone ]; then
+		gone=$(gone_branches) || return
+	fi
+	while IFS= read -r branch; do
+		[ -n "$branch" ] || continue
+		[ "$branch" != "$current" ] || continue
+		if [ "$mode" = gone ]; then
+			case $'\n'"$gone"$'\n' in
+				*$'\n'"$branch"$'\n'*) ;;
+				*) continue ;;
+			esac
+		fi
+		held=0
+		for index in "${!delete_paths[@]}"; do
+			[ "${delete_branches[index]}" = "$branch" ] || continue
+			held=1
+			deletable_worktree "$index" "$here" || continue
+			path=${delete_paths[index]//$'\t'/ }
+			path=${path//$'\n'/ }
+			printf '%s\t%s\t[worktree] %s\n' "$branch" "$index" "$path"
+		done
+		if [ "$held" = 0 ]; then
+			printf '%s\tbranch\t[branch]\n' "$branch"
+		fi
+	done <<<"$branches"
+	if [ "$mode" = all ]; then
+		for index in "${!delete_paths[@]}"; do
+			[ -z "${delete_branches[index]}" ] || continue
+			deletable_worktree "$index" "$here" || continue
+			path=${delete_paths[index]//$'\t'/ }
+			path=${path//$'\n'/ }
+			printf '%s\t%s\t[worktree detached] %s\n' "${delete_heads[index]}" "$index" "$path"
+		done
+	fi
+}
+
+delete_candidates() {
+	local selected=$1 branch index label path remaining
+	while IFS=$'\t' read -r branch index label; do
+		[ -n "$branch" ] || continue
+		if [ "$index" != branch ]; then
+			path=${delete_paths[index]}
+			if ! run git worktree remove -- "$path"; then
+				confirm "Force-remove worktree '$path', including uncommitted and untracked files?" ||
+					die "worktree retained: $path"
+				run git worktree remove --force -- "$path"
+			fi
+			[ -n "${delete_branches[index]}" ] || continue
+			remaining=$(git for-each-ref --format='%(worktreepath)' "refs/heads/$branch")
+			if [ -n "$remaining" ]; then
+				note "Keeping branch '$branch': still used by worktree '$remaining'"
+				continue
+			fi
+		fi
+		run git branch -D -- "$branch"
+	done <<<"$selected"
+}
+
 fzf_preview='git log -n 20 --color=always --date=short --pretty=format:"%C(auto)%h %ad %an %s" {1}'

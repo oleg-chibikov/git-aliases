@@ -5,6 +5,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")" && pwd)
 tmp=$(mktemp -d)
+tmp=$(cd "$tmp" && pwd -P)
 trap 'rm -rf "$tmp"' EXIT
 
 checks=0
@@ -141,8 +142,152 @@ is 'git r leaves an up to date branch alone' "$(git rev-parse origin/main)" "$(g
 git p >/dev/null 2>&1
 is 'git p leaves an up to date branch alone' "$(git rev-parse origin/main)" "$(git rev-parse HEAD)"
 
-has 'git dbm finds nothing to delete' 'No local branches with a gone upstream.' "$(git dbm 2>&1)"
-has 'git dwm finds nothing to remove' 'No worktrees with a gone upstream.' "$(git dwm 2>&1)"
+has 'git dbm finds nothing to delete' 'No deletable branches or worktrees with a gone upstream.' "$(git dbm 2>&1)"
+
+# --- branch and worktree deletion -------------------------------------------
+
+# shellcheck source=bin/_lib.sh
+. "$root/bin/_lib.sh"
+
+confirm() {
+	printf '%s\n' "$*" >>"$tmp/confirmations"
+	[ "${delete_answer:-no}" = yes ]
+}
+
+fzf() {
+	local input
+	input=$(cat)
+	printf '%s\n' "$input" >"$tmp/picker"
+	printf '%s\n' "$input" | awk -F'\t' 'index("\n" ENVIRON["pick_branch"] "\n", "\n" $1 "\n")'
+}
+export -f fzf
+export tmp
+
+git branch delete-plain
+git worktree add -q -b delete-clean "$tmp/clean worktree"
+git worktree add -q -b delete-dirty "$tmp/dirty"
+git worktree add -q -b delete-locked "$tmp/locked"
+git worktree lock "$tmp/locked"
+git worktree add -q --detach "$tmp/detached"
+git worktree add -q -b delete-missing "$tmp/missing"
+git worktree add -q -b delete-odd "$tmp/odd"$'\t\n'"path"
+git config branch.delete-clean.description 'private branch setting'
+clean_gitdir=$(git -C "$tmp/clean worktree" rev-parse --absolute-git-dir)
+echo dirty >>"$tmp/dirty/file.txt"
+echo untracked >"$tmp/dirty/untracked.txt"
+echo ignored >"$tmp/dirty/ignored.cache"
+echo '*.cache' >>.git/info/exclude
+echo ignored >"$tmp/clean worktree/ignored.cache"
+echo shared-stash >>file.txt
+git stash push -qm shared-stash
+shared_stash=$(git rev-parse refs/stash)
+
+load_deletion_worktrees
+candidates=$(deletion_candidates all)
+has 'picker labels branches' $'delete-plain\tbranch\t[branch]' "$candidates"
+has 'picker labels worktrees and paths' "[worktree] $tmp/clean worktree" "$candidates"
+has 'picker includes detached worktrees' '[worktree detached]' "$candidates"
+is 'picker excludes locked worktrees' '' "$(printf '%s\n' "$candidates" | grep -F delete-locked || true)"
+is 'picker excludes current branch' '' "$(printf '%s\n' "$candidates" | awk -F'\t' '$1 == "main"')"
+linked_candidates=$(cd "$tmp/dirty" && load_deletion_worktrees && deletion_candidates all)
+is 'picker excludes the main worktree from a linked worktree' '' "$(printf '%s\n' "$linked_candidates" | awk -F'\t' '$1 == "main"')"
+is 'picker excludes the current linked worktree' '' "$(printf '%s\n' "$linked_candidates" | grep -F delete-dirty || true)"
+detached_candidates=$(cd "$tmp/detached" && load_deletion_worktrees && deletion_candidates all)
+is 'picker excludes the current detached worktree' '' "$(printf '%s\n' "$detached_candidates" | grep -F '[worktree detached]' || true)"
+
+export pick_branch=$'delete-clean\ndelete-plain'
+git db >"$tmp/delete-output" 2>&1
+is 'git db removes the worktree folder' no "$([ -e "$tmp/clean worktree" ] && echo yes || echo no)"
+is 'git db removes private metadata' no "$([ -e "$clean_gitdir" ] && echo yes || echo no)"
+is 'git db removes branch refs' '' "$(git branch --list delete-clean)"
+is 'git db removes branch configuration' '' "$(git config --get branch.delete-clean.description || true)"
+is 'git db removes branch reflog' no "$(git reflog exists refs/heads/delete-clean && echo yes || echo no)"
+has 'git db passes labeled entries to fzf' '[branch]' "$(<"$tmp/picker")"
+is 'git db multi-select also deletes a plain branch' '' "$(git branch --list delete-plain)"
+
+load_deletion_worktrees
+selected=$(deletion_candidates all | awk -F'\t' '$1 == "delete-dirty"')
+# shellcheck disable=SC2016
+refuses 'dirty worktree requires confirmation' 'worktree retained:' bash -c '
+	. "$1/bin/_lib.sh"
+	confirm() { return 1; }
+	load_deletion_worktrees
+	delete_candidates "$2"
+' bash "$root" "$selected"
+is 'declining keeps dirty files' dirty "$(tail -n 1 "$tmp/dirty/file.txt")"
+has 'declining keeps branch' 'delete-dirty' "$(git branch --list delete-dirty)"
+delete_answer=yes
+delete_candidates "$selected" >"$tmp/delete-output" 2>&1
+has 'forced removal warns about data loss' 'including uncommitted and untracked files?' "$(<"$tmp/confirmations")"
+is 'forced removal deletes the folder and ignored files' no "$([ -e "$tmp/dirty" ] && echo yes || echo no)"
+is 'forced removal deletes the branch' '' "$(git branch --list delete-dirty)"
+
+load_deletion_worktrees
+selected=$(deletion_candidates all | awk -F'\t' '$3 ~ /^\[worktree detached\]/ || $1 == "delete-odd"')
+delete_candidates "$selected" >"$tmp/delete-output" 2>&1
+is 'detached worktree folder is removed' no "$([ -e "$tmp/detached" ] && echo yes || echo no)"
+is 'paths with tabs and newlines are removed exactly' no "$([ -e "$tmp/odd"$'\t\n'"path" ] && echo yes || echo no)"
+is 'deleting a detached worktree keeps the current branch' main "$(git b)"
+
+rm "$tmp/missing/file.txt" "$tmp/missing/.git"
+rmdir "$tmp/missing"
+export pick_branch=delete-missing
+git db >"$tmp/delete-output" 2>&1
+is 'git db removes a missing worktree registration and branch' '' "$(git branch --list delete-missing)"
+
+git worktree add -q -b delete-shared "$tmp/shared-a"
+git worktree add -q --force "$tmp/shared-b" delete-shared
+load_deletion_worktrees
+selected=$(deletion_candidates all | awk -F'\t' '$1 == "delete-shared" && !seen++')
+delete_candidates "$selected" >"$tmp/delete-output" 2>&1
+has 'removing one worktree keeps a shared branch' 'delete-shared' "$(git branch --list delete-shared)"
+load_deletion_worktrees
+selected=$(deletion_candidates all | awk -F'\t' '$1 == "delete-shared"')
+delete_candidates "$selected" >"$tmp/delete-output" 2>&1
+is 'removing the last worktree deletes a shared branch' '' "$(git branch --list delete-shared)"
+
+git worktree add -q -b delete-parent "$tmp/parent"
+git worktree add -q -b delete-child "$tmp/parent/child"
+load_deletion_worktrees
+candidates=$(deletion_candidates all)
+is 'picker protects folders containing another worktree' '' "$(printf '%s\n' "$candidates" | awk -F'\t' '$1 == "delete-parent"')"
+has 'nested worktree can be selected separately' 'delete-child' "$candidates"
+
+git branch gone-plain
+git worktree add -q -b gone-worktree "$tmp/gone"
+git worktree add -q -b kept-worktree "$tmp/kept"
+for branch in gone-plain gone-worktree delete-locked main; do
+	git push -q origin "$branch:refs/heads/upstream-$branch"
+	git branch --set-upstream-to="origin/upstream-$branch" "$branch" >/dev/null
+	git push -q origin --delete "upstream-$branch"
+done
+git branch --set-upstream-to=origin/main kept-worktree >/dev/null
+load_deletion_worktrees
+selected=$(deletion_candidates gone)
+has 'dbm candidates include plain branches' $'gone-plain\tbranch\t[branch]' "$selected"
+has 'dbm candidates include worktrees' "[worktree] $tmp/gone" "$selected"
+is 'dbm excludes locked worktrees' '' "$(printf '%s\n' "$selected" | grep -F delete-locked || true)"
+is 'dbm excludes current branches with gone upstreams' '' "$(printf '%s\n' "$selected" | awk -F'\t' '$1 == "main"')"
+is 'dbm keeps branches with existing upstreams' '' "$(printf '%s\n' "$selected" | grep -F kept-worktree || true)"
+git branch prune-only
+git push -qu origin prune-only
+git --git-dir="$tmp/origin.git" update-ref -d refs/heads/prune-only
+# Replace only the terminal prompt in a test copy of the command.
+mkdir -p "$tmp/aliases/bin"
+cp "$root/bin/git-dbm" "$root/bin/_lib.sh" "$tmp/aliases/bin/"
+declare -f confirm >>"$tmp/aliases/bin/_lib.sh"
+export delete_answer=yes
+git -c gitaliases.dir="$tmp/aliases" dbm >"$tmp/delete-output" 2>&1
+has 'git dbm displays branch labels' 'gone-plain [branch]' "$(<"$tmp/delete-output")"
+has 'git dbm displays worktree labels' "gone-worktree [worktree] $tmp/gone" "$(<"$tmp/delete-output")"
+is 'dbm deletion removes gone branches' '' "$(git branch --list 'gone-*')"
+is 'git dbm fetches and prunes before finding candidates' '' "$(git branch --list prune-only)"
+is 'dbm deletion removes gone worktree folders' no "$([ -e "$tmp/gone" ] && echo yes || echo no)"
+is 'dbm leaves locked worktree files' yes "$([ -e "$tmp/locked/file.txt" ] && echo yes || echo no)"
+is 'dbm leaves worktrees with a live upstream' yes "$([ -e "$tmp/kept/file.txt" ] && echo yes || echo no)"
+is 'worktree cleanup keeps shared stash entries' "$shared_stash" "$(git rev-parse refs/stash)"
+
+git branch --set-upstream-to=origin/main main >/dev/null
 
 expected=$(git config --file "$root/aliases.gitconfig" --name-only --get-regexp '^alias\.' | grep -c .)
 is 'git a lists every alias' "$expected" "$(git a | grep -c 'bin/git-')"

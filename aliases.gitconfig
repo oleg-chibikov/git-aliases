@@ -17,7 +17,6 @@
 	cp = "!\"$(git config gitaliases.dir)\"/bin/git-cp"
 	db = "!\"$(git config gitaliases.dir)\"/bin/git-db"
 	dbm = "!\"$(git config gitaliases.dir)\"/bin/git-dbm"
-	dwm = "!\"$(git config gitaliases.dir)\"/bin/git-dwm"
 	hr = "!\"$(git config gitaliases.dir)\"/bin/git-hr"
 	last = "!\"$(git config gitaliases.dir)\"/bin/git-last"
 	m = "!\"$(git config gitaliases.dir)\"/bin/git-master"

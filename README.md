@@ -84,9 +84,8 @@ git, not the script.
 | `cb` | Create a branch, name normalized to lowercase-with-hyphens |
 | `co` | Checkout a branch, fetch it from origin if it isn't local yet |
 | `cp` | Stage all, commit, push. `-f` force-with-lease, `-p` skip hooks, `-s` skip staging, `--` forces the rest to be message |
-| `db` | Pick local branches with fzf (TAB for several) and force-delete them |
-| `dbm` | Prune remotes, then offer to delete branches whose upstream is gone |
-| `dwm` | Same for worktrees: removes the worktree and its branch |
+| `db` | Pick branches and worktrees with fzf (TAB for several), then delete them |
+| `dbm` | Prune remotes, then offer to delete branches and worktrees whose upstream is gone |
 | `hr` | Hard reset to HEAD and delete untracked files |
 | `last` | Show the last commit with its diff |
 | `m`, `main`, `master` | Drop local changes (asks first), fetch, hard reset to the default branch |
@@ -95,6 +94,27 @@ git, not the script.
 | `sb` | Pick a local branch with fzf and switch to it, worktrees included |
 | `sr1` | Undo the last commit, keep its changes staged |
 | `srmb` | Soft reset to the merge base with the default branch, keep changes staged |
+
+### Deleting branches and worktrees
+
+`db` and `dbm` mark entries as `[branch]` or `[worktree]`. Worktree entries
+include the folder path. `db` also offers detached worktrees without a branch.
+`dbm` requires a branch with a deleted upstream.
+
+- **Cleanup:** Git removes the worktree folder and its private metadata before
+  deleting the branch. Branch deletion also removes its reflog and configuration.
+- **Confirmation:** If Git refuses removal, the command asks before retrying with
+  `--force`. This can delete uncommitted changes and untracked or ignored files.
+  Declining stops the command and keeps that worktree and branch.
+- **Protection:** The main worktree, the current worktree and locked worktrees
+  are excluded along with their branches. Worktrees containing another
+  registered worktree are also excluded. A branch used by another worktree
+  stays until its last worktree is removed.
+- **Shared data:** Shared stash entries, remote branches and shared Git objects
+  stay in the repository. Git handles unreachable objects through normal garbage
+  collection. External caches and editor sessions stay unchanged.
+
+`dbm` replaces the former `dwm` command.
 
 The remote is `origin`, or the only remote you have if it goes by another name.
 The default branch comes from `<remote>/HEAD`, falling back to `master` then

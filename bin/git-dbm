@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
-# Prune remotes, then offer to delete local branches whose upstream is gone.
-# Those are usually branches that were squash-merged.
+# Prune remotes, then offer to delete branches and worktrees whose upstream is gone.
 set -euo pipefail
 # shellcheck source=bin/_lib.sh
 . "$(dirname "$0")/_lib.sh"
 
 run git fetch --prune
 
-gone=$(gone_branches)
-if [ -z "$gone" ]; then
-	echo 'No local branches with a gone upstream.'
+load_deletion_worktrees
+selected=$(deletion_candidates gone)
+if [ -z "$selected" ]; then
+	echo 'No deletable branches or worktrees with a gone upstream.'
 	exit 0
 fi
 
-echo 'Local branches whose remote was deleted:'
-printf '%s\n' "$gone" | sed 's/^/  /'
-confirm 'Delete these?' || die 'aborted'
+echo 'Branches and worktrees whose remote branch was deleted:'
+printf '%s\n' "$selected" | awk -F'\t' '{print "  " $1 " " $3}'
+confirm 'Delete these branches and worktree folders?' || die 'aborted'
 
-while IFS= read -r branch; do
-	run git branch -D "$branch"
-done <<<"$gone"
+delete_candidates "$selected"

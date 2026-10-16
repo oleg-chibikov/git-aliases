@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
-# Pick local branches with fzf (TAB for several) and force-delete them.
+# Pick branches and worktrees with fzf (TAB for several), then delete them.
 set -euo pipefail
 # shellcheck source=bin/_lib.sh
 . "$(dirname "$0")/_lib.sh"
 require fzf
 
-current=$(git branch --show-current)
+load_deletion_worktrees
+candidates=$(deletion_candidates all)
+[ -n "$candidates" ] || {
+	echo 'No branches or worktrees to delete.'
+	exit 0
+}
 
 selected=$(
-	git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/ |
-		awk -v current="$current" '$0 != current' |
+	printf '%s\n' "$candidates" |
 		fzf --multi --height=40% --reverse \
-			--header='TAB to multi-select, Enter to force-delete' \
+			--delimiter=$'\t' --with-nth=1,3.. \
+			--header='TAB to multi-select, Enter to delete branches and worktree folders' \
 			--preview "$fzf_preview"
 ) || exit 0
 
 [ -n "$selected" ] || exit 0
 
-while IFS= read -r branch; do
-	run git branch -D "$branch"
-done <<<"$selected"
+delete_candidates "$selected"
