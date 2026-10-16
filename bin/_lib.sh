@@ -27,6 +27,10 @@ die() {
 	exit 1
 }
 
+warn() {
+	printf '%swarning:%s %s\n' "$C_NOTE" "$C_RESET" "$*" >&2
+}
+
 # How the alias is called: the argument shape, then a line per flag. Exits 1,
 # the way git itself answers -h.
 usage() {
@@ -178,6 +182,34 @@ deletion_candidates() {
 	fi
 }
 
+worktree_registered() {
+	local field
+	while IFS= read -r -d '' field; do
+		[ "$field" != "worktree $1" ] || return 0
+	done < <(git worktree list --porcelain -z)
+	return 1
+}
+
+# A dev server running in the folder can write files while git deletes it.
+# git then drops the registration and leaves the folder behind.
+force_remove_worktree() {
+	local path=$1 attempt pids
+	run git worktree remove --force -- "$path" && return 0
+	for attempt in 1 2 3; do
+		[ "$attempt" = 1 ] || sleep 1
+		run rm -rf -- "$path" && break
+	done
+	if worktree_registered "$path"; then
+		run git worktree remove --force -- "$path" || return 1
+	fi
+	[ -e "$path" ] || return 0
+	pids=''
+	if command -v lsof >/dev/null 2>&1; then
+		pids=$(lsof -t +d "$path" 2>/dev/null | sort -u | tr '\n' ' ') || true
+	fi
+	warn "could not delete '$path'${pids:+, processes still using it: $pids}"
+}
+
 delete_candidates() {
 	local selected=$1 branch index label path remaining
 	while IFS=$'\t' read -r branch index label; do
@@ -187,7 +219,7 @@ delete_candidates() {
 			if ! run git worktree remove -- "$path"; then
 				confirm "Force-remove worktree '$path', including uncommitted and untracked files?" ||
 					die "worktree retained: $path"
-				run git worktree remove --force -- "$path"
+				force_remove_worktree "$path" || die "worktree retained: $path"
 			fi
 			[ -n "${delete_branches[index]}" ] || continue
 			remaining=$(git for-each-ref --format='%(worktreepath)' "refs/heads/$branch")

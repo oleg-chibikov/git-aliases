@@ -222,6 +222,43 @@ has 'forced removal warns about data loss' 'including uncommitted and untracked 
 is 'forced removal deletes the folder and ignored files' no "$([ -e "$tmp/dirty" ] && echo yes || echo no)"
 is 'forced removal deletes the branch' '' "$(git branch --list delete-dirty)"
 
+# git drops the registration, then fails because a dev server wrote a new file.
+git() {
+	if [ "${1:-} ${2:-} ${3:-}" = 'worktree remove --force' ]; then
+		command git "$@" || return
+		mkdir -p "$5/.vite"
+		echo "error: failed to delete '$5': Directory not empty" >&2
+		return 1
+	fi
+	command git "$@"
+}
+git worktree add -q -b delete-busy "$tmp/busy"
+git worktree add -q -b delete-after-busy "$tmp/after-busy"
+echo untracked >"$tmp/busy/untracked.txt"
+load_deletion_worktrees
+selected=$(deletion_candidates all | awk -F'\t' '$1 == "delete-busy" || $1 == "delete-after-busy"')
+delete_candidates "$selected" >"$tmp/delete-output" 2>&1
+is 'a folder refilled during removal is deleted' no "$([ -e "$tmp/busy" ] && echo yes || echo no)"
+is 'a folder refilled during removal loses its branch' '' "$(git branch --list delete-busy)"
+is 'deletion continues after a refilled folder' '' "$(git branch --list delete-after-busy)"
+
+git worktree add -q -b delete-stuck "$tmp/stuck"
+echo untracked >"$tmp/stuck/untracked.txt"
+rm() {
+	if [ "${3:-}" = "$tmp/stuck" ]; then
+		echo "rm: $3: Directory not empty" >&2
+		return 1
+	fi
+	command rm "$@"
+}
+load_deletion_worktrees
+selected=$(deletion_candidates all | awk -F'\t' '$1 == "delete-stuck"')
+delete_candidates "$selected" >"$tmp/delete-output" 2>&1
+unset -f git rm
+has 'a folder that stays busy gets a warning' "warning: could not delete '$tmp/stuck'" "$(<"$tmp/delete-output")"
+is 'a folder that stays busy still loses its branch' '' "$(git branch --list delete-stuck)"
+rm -rf "$tmp/stuck"
+
 load_deletion_worktrees
 selected=$(deletion_candidates all | awk -F'\t' '$3 ~ /^\[worktree detached\]/ || $1 == "delete-odd"')
 delete_candidates "$selected" >"$tmp/delete-output" 2>&1
