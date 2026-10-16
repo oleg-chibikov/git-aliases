@@ -275,6 +275,25 @@ has 'a folder that stays busy gets a warning' "warning: could not delete '$tmp/s
 is 'a folder that stays busy still loses its branch' '' "$(git branch --list delete-stuck)"
 rm -rf "$tmp/stuck"
 
+git worktree add -q -b order-dirty "$tmp/order-dirty"
+echo untracked >"$tmp/order-dirty/untracked.txt"
+git worktree add -q -b order-clean "$tmp/order-clean"
+git branch order-plain
+load_deletion_worktrees
+selected=$'no-such-branch\tbranch\t[branch]\n'$(deletion_candidates all | awk -F'\t' '$1 ~ /^order-/')
+status=0
+(
+	confirm() {
+		printf 'clean=%s plain=%s\n' "$([ -e "$tmp/order-clean" ] && echo yes || echo no)" \
+			"$(git branch --list order-plain)" >"$tmp/order-state"
+	}
+	delete_candidates "$selected"
+) >"$tmp/delete-output" 2>&1 || status=$?
+is 'questions come after the deletions that need none' 'clean=no plain=' "$(<"$tmp/order-state")"
+is 'a failed entry leaves the rest deleted' '' "$(git branch --list 'order-*')"
+is 'a failed entry makes the command fail' 1 "$status"
+has 'a failed entry is reported' 'branch retained: no-such-branch' "$(<"$tmp/delete-output")"
+
 load_deletion_worktrees
 selected=$(deletion_candidates all | awk -F'\t' '$3 ~ /^\[worktree detached\]/ || $1 == "delete-odd"')
 delete_candidates "$selected" >"$tmp/delete-output" 2>&1

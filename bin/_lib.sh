@@ -206,36 +206,73 @@ delete_leftover_folder() {
 	warn "could not delete '$path'${pids:+, processes still using it: $pids}"
 }
 
-remove_worktree() {
+# Removes a worktree only when git finds no changes in it. Fails if the
+# worktree is still registered, which means it needs --force.
+remove_clean_worktree() {
 	local path=$1
 	run git worktree remove -- "$path" && return 0
 	# git checks for changes before it deletes. A dropped registration means none.
-	if worktree_registered "$path"; then
-		confirm "Force-remove worktree '$path', including uncommitted and untracked files?" || return 1
-		run git worktree remove --force -- "$path" && return 0
-	fi
+	worktree_registered "$path" && return 1
 	delete_leftover_folder "$path"
-	if worktree_registered "$path"; then
-		run git worktree remove --force -- "$path"
-	fi
 }
 
+force_remove_worktree() {
+	local path=$1
+	run git worktree remove --force -- "$path" && return 0
+	delete_leftover_folder "$path"
+	worktree_registered "$path" || return 0
+	run git worktree remove --force -- "$path"
+}
+
+# Deletes the branch of a removed worktree, unless another worktree still uses it.
+delete_worktree_branch() {
+	local branch=$1 index=$2 remaining
+	[ -n "${delete_branches[index]}" ] || return 0
+	remaining=$(git for-each-ref --format='%(worktreepath)' "refs/heads/$branch")
+	if [ -n "$remaining" ]; then
+		note "Keeping branch '$branch': still used by worktree '$remaining'"
+		return 0
+	fi
+	run git branch -D -- "$branch" || {
+		warn "branch retained: $branch"
+		return 1
+	}
+}
+
+# Deletes what needs no question first. Worktrees with changes wait for the
+# questions at the end. A failed entry leaves the rest running.
 delete_candidates() {
-	local selected=$1 branch index label path remaining
+	local selected=$1 branch index label path failed=0 i
+	local -a dirty_branches=() dirty_indexes=()
 	while IFS=$'\t' read -r branch index label; do
 		[ -n "$branch" ] || continue
-		if [ "$index" != branch ]; then
-			path=${delete_paths[index]}
-			remove_worktree "$path" || die "worktree retained: $path"
-			[ -n "${delete_branches[index]}" ] || continue
-			remaining=$(git for-each-ref --format='%(worktreepath)' "refs/heads/$branch")
-			if [ -n "$remaining" ]; then
-				note "Keeping branch '$branch': still used by worktree '$remaining'"
-				continue
-			fi
+		if [ "$index" = branch ]; then
+			run git branch -D -- "$branch" || {
+				warn "branch retained: $branch"
+				failed=1
+			}
+			continue
 		fi
-		run git branch -D -- "$branch"
+		path=${delete_paths[index]}
+		if remove_clean_worktree "$path"; then
+			delete_worktree_branch "$branch" "$index" || failed=1
+		else
+			dirty_branches+=("$branch")
+			dirty_indexes+=("$index")
+		fi
 	done <<<"$selected"
+	for i in "${!dirty_indexes[@]}"; do
+		index=${dirty_indexes[i]}
+		path=${delete_paths[index]}
+		if confirm "Force-remove worktree '$path', including uncommitted and untracked files?" &&
+			force_remove_worktree "$path"; then
+			delete_worktree_branch "${dirty_branches[i]}" "$index" || failed=1
+		else
+			warn "worktree retained: $path"
+			failed=1
+		fi
+	done
+	return "$failed"
 }
 
 fzf_preview='git log -n 20 --color=always --date=short --pretty=format:"%C(auto)%h %ad %an %s" {1}'

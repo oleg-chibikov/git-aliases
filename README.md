@@ -103,9 +103,14 @@ include the folder path. `db` also offers detached worktrees without a branch.
 
 - **Cleanup:** Git removes the worktree folder and its private metadata before
   deleting the branch. Branch deletion also removes its reflog and configuration.
-- **Confirmation:** If Git refuses removal, the command asks before retrying with
-  `--force`. This can delete uncommitted changes and untracked or ignored files.
-  Declining stops the command and keeps that worktree and branch.
+  A dev server writing into the folder can leave it behind. The command then
+  deletes the folder itself, or warns with the ids of the processes holding it.
+- **Confirmation:** The command first deletes every entry Git allows without
+  `--force`. Questions come at the end, one per worktree Git refused. Yes
+  retries with `--force`, which deletes uncommitted changes and untracked or
+  ignored files. No keeps that worktree and branch.
+- **Failures:** A failed entry prints a warning and the rest still go. The
+  command exits with 1 when something stayed.
 - **Protection:** The main worktree, the current worktree and locked worktrees
   are excluded along with their branches. Worktrees containing another
   registered worktree are also excluded. A branch used by another worktree
